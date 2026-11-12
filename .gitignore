@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.sqlite*
+*.db
+*-wal
+*-shm
+uploads/
+screenshots/
+node_modules/
+__pycache__/
+backups/

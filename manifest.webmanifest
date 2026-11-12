@@ -1,0 +1,10 @@
+{
+  "name": "9000 км · Sportfond",
+  "short_name": "9000 км",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#091525",
+  "theme_color": "#091525"
+}
