@@ -67,3 +67,9 @@ Browser interactions passed: history filters; rejected reason and retry link; de
 Seven build/runtime/PWA tests pass: static route output, icon dimensions, offline shell fallback, API/uploads/POST/cross-origin cache bypass, existing Worker routing. Service worker is production-only; real browser installation, physical-device offline behavior and a full update lifecycle remain prelaunch checks. No real authentication, email sending, persistence or AI was enabled by this frontend iteration. SMTP delivery is separately confirmed by the owner.
 
 final result: passed
+
+## Simplified GPS-only acceptance
+
+Owner change: running with GPS only, any pace, workout dates from 2026-10-29 inclusive. Removed gym/treadmill eligibility and pace/duration/HR requirements from rules and the workout/result/moderation UI. Approval now uses a shared validation module with explicit date, km and GPS confirmation; exact-image hash prevents duplicate credit. The unchanged layout was visually inspected on the rules page; evidence qa/rules-gps-only.png. Browser checks confirmed GPS-blocked approval followed by successful approval after GPS confirmation. Native date entry did not apply the attempted earlier value in the browser, so cutoff boundary correctness is verified by the module's unit tests rather than claimed as a successful browser date-entry check. Four new domain tests cover inclusive date boundary, missing GPS, invalid/future dates, invalid distance and duplicate credit. Full build plus eleven runtime/PWA/domain tests pass. Modified screenshots/cropped duplicates still require server-side detection and review; frontend does not claim complete anti-fraud protection. No new visual P0/P1/P2 issues.
+
+final result: passed
