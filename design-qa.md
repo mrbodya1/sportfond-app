@@ -83,3 +83,15 @@ End-to-end browser check: local icon fixture selected; explicit OpenAI-processin
 Limits: quality on a real running screenshot not yet assessed; operator must test an actual screenshot. Endpoint is loopback-only test tooling, not a public authenticated participant API. Keys never enter frontend or Git. Model results can be placed only in the temporary test queue. No screenshots saved to disk by this test endpoint. No remaining actionable visual P0/P1/P2 findings for this local test scope.
 
 final result: passed
+
+## Persistent account and automatic-credit release candidate — 13 November
+
+Owner requested removal of mandatory moderation for clear valid results and replacement of demo labels with actual server behavior. app_server/app_store now provide email OTP, hashed server sessions, stored legal consent version/time, private screenshot storage, persistent workout credit, duplicate protection and server-enforced admin role. Frontend uses authoritative responses rather than sample records; no demo totals or fallback login remain. Main maintenance branch stays unchanged.
+
+Validation: 14 Python tests pass locally and on the home Linux, including isolated HTTP signup/session/admin/recognition flows with mocked mail/provider; 11 Node domain/PWA/runtime tests and production build pass. Tests verify code reuse/attempt/expiry, session persistence/logout, automatic credit, duplicate idempotency, similar-workout review, delete/restore, hundredths rounding, admin-only mutation, cross-user duplicate rejection and missing-field rejection. No real accounts were created by these automated tests.
+
+Browser evidence: qa-release/registration-320.png and registration-1440.png. Direct unauthenticated admin navigation shows the sign-up form, not administrative data. At 320 and 1440 there is no horizontal overflow; legal checkboxes remain unchecked. No demo labels in active source UI. Existing approved layout, imagery and typography retained. No actionable P0/P1/P2 visual findings in these observed unauthenticated views.
+
+Owner handoff: real registration/OTP and actual running screenshot remain pending owner action. Authenticated dashboard/credit UI has not yet been observed with a real account in this release. Public HTTPS routing, secure-cookie production configuration, autostart and scheduled backups are separate release prerequisites documented in docs/LOCAL-APP.md. Do not equate this candidate with public launch approval.
+
+final result: passed for implemented automated checks and observed unauthenticated UI; owner end-to-end acceptance pending

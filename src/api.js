@@ -1,0 +1,8 @@
+const errors={authentication_required:'Войди в аккаунт, чтобы продолжить.',admin_required:'Недостаточно прав администратора.',invalid_code:'Код не подходит. Проверь письмо.',code_expired:'Код истёк или закончились попытки. Запроси новый.',registration_required:'Сначала зарегистрируйся с этим адресом.',resend_cooldown:'Повторный код можно запросить через минуту.',email_hourly_limit:'Слишком много запросов кода. Попробуй позже.',email_delivery_failed:'Письмо не удалось отправить. Попробуй позже.',registration_consent_required:'Укажи имя и подтверди правила и согласие.',duplicate_image:'Эта тренировка уже была загружена. Повторный зачёт запрещён.',workout_rules_failed:'Проверь дату, положительную дистанцию и подтверждение GPS.',rejection_reason_required:'Укажи причину отклонения.',recognition_hourly_limit:'Лимит распознаваний исчерпан. Попробуй позже.',recognition_busy:'Другая проверка ещё выполняется.',provider_quota_or_rate_limit:'Сервис распознавания временно недоступен: квота или лимит запросов.'};
+export async function api(path,body,signal){
+ let response;
+ try{response=await fetch('/api'+path,{method:body===undefined?'GET':'POST',credentials:'same-origin',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal});}catch(e){if(e.name==='AbortError')throw e;throw new Error('Нет соединения с сервером. Повтори позже.');}
+ let data;try{data=await response.json();}catch{throw new Error('Сервер временно недоступен.');}
+ if(!response.ok){if(response.status===401)window.dispatchEvent(new Event('sf-auth-required'));throw new Error(errors[data.error]||'Не удалось выполнить действие. Повтори позже.');}
+ return data;
+}

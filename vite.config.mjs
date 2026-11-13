@@ -10,7 +10,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      "/api/recognition": { target: "http://127.0.0.1:18766", changeOrigin: false, timeout: 65000, proxyTimeout: 65000 },
+      "/api": { target: "http://127.0.0.1:18766", changeOrigin: false, timeout: 65000, proxyTimeout: 65000 },
     },
     host: "0.0.0.0",
     allowedHosts: ["terminal.local"],

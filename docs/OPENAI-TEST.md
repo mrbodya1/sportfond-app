@@ -53,3 +53,7 @@ python3 -m unittest discover -s backend -p 'test_*.py'
 - https://developers.openai.com/api/docs/guides/images-vision
 - https://developers.openai.com/api/docs/guides/structured-outputs
 - https://developers.openai.com/api/docs/models/gpt-4.1-mini
+
+## Обработчик заменён
+
+Сведения выше — история первого изолированного подключения. Текущий кабинет использует app_server.py с обязательным входом по почте, серверной БД, сохранением изображения и автоматическим зачётом. Старую команду запуска не использовать вместе с ним. Актуальные параметры и ограничения: LOCAL-APP.md.

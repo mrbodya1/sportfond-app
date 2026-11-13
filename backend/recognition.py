@@ -94,7 +94,7 @@ def validate_result(data, today=None):
         except (ValueError, TypeError):
             raise RecognitionError("invalid_workout_date") from None
     today = today or dt.datetime.now(dt.timezone(dt.timedelta(hours=5))).date()
-    decision, reason = "eligible_preview", "Дата, километры и GPS распознаны. Требуется подтверждение модератором."
+    decision, reason = "eligible_preview", "Дата, километры и GPS распознаны. Тренировка соответствует правилам."
     if not data["readable"] or distance is None or date is None:
         decision, reason = "manual_review", "Дата или километры читаются неоднозначно. Нужна ручная проверка."
     elif date < FIRST_DATE:
