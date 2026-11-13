@@ -95,3 +95,10 @@ Browser evidence: qa-release/registration-320.png and registration-1440.png. Dir
 Owner handoff: real registration/OTP and actual running screenshot remain pending owner action. Authenticated dashboard/credit UI has not yet been observed with a real account in this release. Public HTTPS routing, secure-cookie production configuration, autostart and scheduled backups are separate release prerequisites documented in docs/LOCAL-APP.md. Do not equate this candidate with public launch approval.
 
 final result: passed for implemented automated checks and observed unauthenticated UI; owner end-to-end acceptance pending
+
+
+## Upload simplification — owner request
+
+Removed the automatic-check heading, provider explanation and per-image checkbox. Only Send initiates upload; file selection alone sends nothing. Kept recognition results, errors and duplicate protections. Registration consent controls unchanged. Browser inspected authenticated upload form; evidence qa-release/upload-send.png. Production build passes.
+
+final result: passed
