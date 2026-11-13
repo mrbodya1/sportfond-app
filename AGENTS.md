@@ -10,3 +10,5 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 User priority: responsive layouts on phones, tablets and desktops. Keep the main-branch maintenance page untouched; development belongs to recovery.
 
 Registration/legal extension: keep rules acceptance separate from personal-data consent; both unchecked by default. Documents are drafts until operator and final conditions are confirmed. Admin remains an openly labelled demo with fictional records until server role enforcement exists. Never publish runtime data, SMTP passwords or real participant screenshots.
+
+Rules now incorporate owner-provided prizes and indoor HR/outdoor GPS conditions. Keep missing dates, ages and numerical thresholds explicit; do not invent them. PWA must never cache API or participant uploads. Demo totals must use the shared approved-workout model.
