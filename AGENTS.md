@@ -8,3 +8,5 @@ When implementing from a selected generated mock, treat that image as the source
 
 Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.
 User priority: responsive layouts on phones, tablets and desktops. Keep the main-branch maintenance page untouched; development belongs to recovery.
+
+Registration/legal extension: keep rules acceptance separate from personal-data consent; both unchecked by default. Documents are drafts until operator and final conditions are confirmed. Admin remains an openly labelled demo with fictional records until server role enforcement exists. Never publish runtime data, SMTP passwords or real participant screenshots.

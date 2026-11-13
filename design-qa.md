@@ -33,3 +33,15 @@ Browser: registration name/email/consent -> demo code; wrong code error; correct
 P3: replace the generated raster brand lockup with an official vector asset. Test on physical iOS/Android before production. Backend, real email and AI are future work and outside this visual prototype.
 
 final result: passed
+
+## Iteration: administration and documents, 13 November 2026
+
+User-requested extension of the approved existing brand. Added /#admin, /#rules, /#privacy and /#consent; kept the original three-page visual direction. Evidence: qa/admin-desktop.png (1440x1000), qa/admin-mobile.png (390x844), qa/privacy-mobile.png (390x844). Readable mobile document content checked also at 320x740; no horizontal overflow observed. At 1440px the admin uses sidebar/queue/review columns; at 390px the layout stacks. Selecting a queue row on mobile now scrolls to the review, resolving an offscreen-feedback usability issue.
+
+Fonts, spacing, navy/cyan palette and header assets follow the approved main/app design. Documents use calm body typography, numbered headings and a persistent desktop document index. Legal content is explicitly a draft and contains no invented operator details, launch dates or prizes. Admin records use example.com addresses and fictional participant labels. The empty screenshot area describes absent demo files and does not masquerade as a real training screenshot.
+
+Browser checks: rejecting without a reason displays an error; approving 6.30 km updates confirmed total to 11.40 km; journal records action/distance/comment. Search empty state and reset work. Two registration checkboxes are initially false; submitting with only rules checked stays on the form, then checking consent proceeds to the demo code screen. Browser error logs empty. Four Sites runtime tests and three isolated SMTP diagnostic unit tests pass. Real TLS SMTP connectivity separately checked from the home server; credentials and delivery remain unverified.
+
+Comparison: original approved home/registration visual direction and rendered extensions inspected for coherent typography, white surface, navy headings, spacing and image treatment. New admin/document anatomy is requested functionality, not an exact clone of an absent screen. No remaining actionable P0/P1/P2 findings in the demonstrated frontend scope. Actual server authentication, role enforcement and mail delivery remain intentionally unimplemented and are not represented as working.
+
+final result: passed
