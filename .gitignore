@@ -1,12 +1,7 @@
+node_modules/
+.pnpm-store/
+dist/
 .env
 .env.*
 !.env.example
-*.sqlite*
-*.db
-*-wal
-*-shm
-uploads/
-screenshots/
-node_modules/
-__pycache__/
-backups/
+*.log
