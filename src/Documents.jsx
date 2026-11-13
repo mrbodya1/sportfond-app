@@ -1,4 +1,6 @@
 import React from 'react';
+import policyText from './legal/policy.md?raw';
+import consentText from './legal/consent.md?raw';
 import {ArrowLeft,ArrowRight,FileText,ShieldCheck} from '@phosphor-icons/react';
 
 const documents = {
@@ -8,27 +10,34 @@ const documents = {
   ['Как добавить тренировку','Подготовь скриншот, на котором читаются дата, дистанция и сведения о тренировке. Для пробежки на улице должен быть виден GPS-трек. Загрузи JPG, PNG или WEBP до 5 МБ. Не размещай на скриншоте чужие данные; по возможности скрой домашний адрес и ненужные личные сведения. Условия зачёта тренировок в помещении ещё согласовываются.'],
   ['Проверка и зачёт','Планируется автоматическое распознавание показателей с возможностью ручной проверки. В общий счётчик попадут только подтверждённые тренировки. Сомнительный результат можно будет передать модератору. Одна и та же тренировка не должна учитываться повторно; чужие и изменённые результаты не принимаются.'],
   ['Если возник вопрос','Модератор должен объяснить причину отклонения. Участник сможет запросить повторную проверку и уточнить результат. Контакт проекта: sportfondhm@ya.ru. Срок ответа и порядок апелляции будут закреплены в окончательной редакции.'],
-  ['Что ещё согласовываем','Организатор, даты старта и окончания, возрастные условия, допустимые виды активности, пороги проверки, призы и сроки рассмотрения пока не утверждены. Исторические условия из старой версии сюда не перенесены. До утверждения этих условий набор настоящих участников не открыт.']
+  ['Что ещё согласовываем','Организатор — АНО «Сообщество любителей массового спорта Югры». Даты старта и окончания, возрастные условия, допустимые виды активности, пороги проверки, призы и сроки рассмотрения пока не утверждены. Исторические условия из старой версии сюда не перенесены. До утверждения этих условий набор настоящих участников не открыт.']
  ]},
- privacy: {label:'ПЕРСОНАЛЬНЫЕ ДАННЫЕ',title:'Политика обработки данных',intro:'Какие данные нужны приложению и как будет устроена работа с ними.',sections:[
-  ['Статус документа и оператор','Это проект политики для будущего запуска приложения. Полное наименование или ФИО оператора, его адрес и реквизиты ещё не предоставлены. Контакт проекта из паспорта: sportfondhm@ya.ru. Окончательная редакция будет опубликована после подтверждения оператора и фактической схемы обработки.'],
-  ['Что происходит в текущем прототипе','Имя, email и выбранное изображение обрабатываются в оперативной памяти браузера для демонстрации интерфейса. Приложение не отправляет их на сервер, не отправляет письма и не вызывает нейросети. После перезагрузки страницы эти значения не восстанавливаются. История и показатели в кабинете — примеры, а не данные реальных участников.'],
-  ['Какая обработка планируется','Для регистрации и входа — имя, email и данные сессии. Для проверки тренировок — предоставленные участником изображения и распознанные дата, дистанция, длительность и темп. Для модерации — статус, причина решения и история изменений. Точный перечень, основания, сроки хранения и технические журналы будут зафиксированы перед запуском.'],
-  ['Цели','Создание кабинета и вход по коду, приём и проверка тренировок, подсчёт подтверждённых километров, рассмотрение обращений и защита приложения от злоупотреблений. Рекламные рассылки в этот перечень не входят. Публичное отображение персональных результатов требует отдельного решения об условиях публикации.'],
-  ['Скриншоты и распознавание','Скриншот может содержать маршрут и другие личные сведения. Участнику не следует загружать лишние данные или сведения о других людях. Использование OpenAI или GigaChat ещё не подключено. До подключения необходимо определить поставщика, передаваемые сведения, место обработки, правовое основание и применимые условия передачи. Никакая передача в ИИ в текущем прототипе не выполняется.'],
-  ['Хранение и доступ','Планируемая архитектура — серверное хранилище, авторизованный доступ и ограниченные роли модераторов. Фактические место размещения, сроки удаления изображений, сроки хранения учётных записей, резервных копий и журналов пока не утверждены. Публичные исходники GitHub не должны содержать пароли, почтовые ключи или данные участников.'],
-  ['Обращения участника','В окончательной политике будут указаны способы запроса сведений об обработке, исправления и удаления данных, отзыва согласия и обжалования действий оператора. Сейчас вопросы о проекте можно направить на sportfondhm@ya.ru. Данные для реального участия до завершения подготовки не собираются.']
- ]},
- consent: {label:'ОТДЕЛЬНЫЙ ДОКУМЕНТ',title:'Согласие на обработку данных',intro:'Согласие будет отдельным от принятия правил участия. Сейчас перед тобой проект документа.',sections:[
-  ['До запуска','Необходимо указать полное наименование или ФИО оператора, адрес, цели и правовое основание, перечень данных и действий, сроки и способ отзыва. Эти сведения не предоставлены, поэтому настоящий документ нельзя использовать как готовое согласие для сбора данных.'],
-  ['Планируемый объём','Имя и email для кабинета; изображения тренировок и извлечённые показатели для проверки; статусы, решения и обращения для модерации. Окончательный перечень должен соответствовать реально работающему сервису.'],
-  ['Предполагаемые действия','Получение, запись, хранение, уточнение, использование для проверки, ограничение доступа, удаление и уничтожение. Передача стороннему распознавателю, публикация результатов и иные цели не считаются автоматически разрешёнными этим проектом.'],
-  ['Добровольность и отзыв','В рабочей версии согласие должно даваться отдельным действием без заранее установленной отметки. Способ отзыва, сроки обработки обращения и последствия для кабинета будут указаны после подтверждения реквизитов оператора.'],
-  ['Текущая демонстрация','Отметка на форме показывает только будущий пользовательский сценарий. Код, email и изображение не уходят на сервер. Юридически завершённое согласие и журнал его подтверждения ещё не реализованы.']
- ]}
+
 };
 
 export function DocumentPage({kind}) {
+ if(kind==='privacy'||kind==='consent')return <SuppliedDocument kind={kind}/>;
  const doc=documents[kind];
- return <><section className="scenic document-hero"><div className="wrap"><header className="header"><a className="brand" href="#home" aria-label="Спортфонд — на главную"><img src="./assets/logo.png" alt="Спортфонд"/></a><a className="header-link" href="#registration"><ArrowLeft/> К регистрации</a></header><div className="document-heading"><p className="eyebrow">{doc.label}</p><h1>{doc.title}</h1><p>{doc.intro}</p></div></div></section><main id="content" className="document-layout wrap"><aside className="document-nav"><p className="eyebrow muted">ДОКУМЕНТЫ</p><a href="#rules" aria-current={kind==='rules'?'page':undefined}><FileText/>Правила участия</a><a href="#privacy" aria-current={kind==='privacy'?'page':undefined}><ShieldCheck/>Политика данных</a><a href="#consent" aria-current={kind==='consent'?'page':undefined}><FileText/>Согласие</a><small>Проекты · 13 ноября 2026</small></aside><article className="document-body"><div className="draft-banner"><ShieldCheck/><div><strong>Проект для согласования</strong><p>Регистрация настоящих участников ещё не запущена. Реквизиты и условия предстоит подтвердить.</p></div></div>{doc.sections.map(([title,body],i)=><section key={title}><h2><span>{String(i+1).padStart(2,'0')}</span>{title}</h2><p>{body}</p></section>)}<div className="document-actions"><a className="button primary" href="#registration">К регистрации <ArrowRight/></a><a className="text-link" href="#home">На главную</a></div></article></main></>;
+ return <><section className="scenic document-hero"><div className="wrap"><header className="header"><a className="brand" href="#home" aria-label="Спортфонд — на главную"><img src="/assets/logo.png" alt="Спортфонд"/></a><a className="header-link" href="#registration"><ArrowLeft/> К регистрации</a></header><div className="document-heading"><p className="eyebrow">{doc.label}</p><h1>{doc.title}</h1><p>{doc.intro}</p></div></div></section><main id="content" className="document-layout wrap"><aside className="document-nav"><p className="eyebrow muted">ДОКУМЕНТЫ</p><a href="#rules" aria-current={kind==='rules'?'page':undefined}><FileText/>Правила участия</a><a href="#privacy" aria-current={kind==='privacy'?'page':undefined}><ShieldCheck/>Политика данных</a><a href="#consent" aria-current={kind==='consent'?'page':undefined}><FileText/>Согласие</a><small>Проекты · 13 ноября 2026</small></aside><article className="document-body"><div className="draft-banner"><ShieldCheck/><div><strong>Проект для согласования</strong><p>Регистрация настоящих участников ещё не запущена. Реквизиты и условия предстоит подтвердить.</p></div></div>{doc.sections.map(([title,body],i)=><section key={title}><h2><span>{String(i+1).padStart(2,'0')}</span>{title}</h2><p>{body}</p></section>)}<div className="document-actions"><a className="button primary" href="#registration">К регистрации <ArrowRight/></a><a className="text-link" href="#home">На главную</a></div></article></main></>;
+}
+
+function InlineText({text}) {
+ return text.split(/(\*\*[^*]+\*\*|https:\/\/[^\s]+)/g).map((part,i)=>{
+  if(part.startsWith('**')&&part.endsWith('**'))return <strong key={i}>{part.slice(2,-2)}</strong>;
+  if(part.startsWith('https://')) {const url=part.replace(/[.,;]+$/,'');const suffix=part.slice(url.length);return <React.Fragment key={i}><a href={url==='https://app.sportfondhm.ru/policy/'?'/policy/':url}>{url}</a>{suffix}</React.Fragment>;}
+  return part;
+ });
+}
+function DocumentText({text}) {
+ const blocks=text.trim().split(/\r?\n\s*\r?\n/);
+ return blocks.map((block,i)=>{
+  if(block.startsWith('# '))return null;
+  if(block.startsWith('### '))return <h2 key={i}>{block.slice(4)}</h2>;
+  if(block.split(/\r?\n/).every(line=>line.startsWith('- ')))return <ul key={i}>{block.split(/\r?\n/).map((line,j)=><li key={j}><InlineText text={line.slice(2)}/></li>)}</ul>;
+  return <p key={i}><InlineText text={block}/></p>;
+ });
+}
+function SuppliedDocument({kind}) {
+ const policy=kind==='privacy';
+ return <><section className="scenic document-hero"><div className="wrap"><header className="header"><a className="brand" href="#home" aria-label="Спортфонд — на главную"><img src="/assets/logo.png" alt="Спортфонд"/></a><a className="header-link" href="#registration"><ArrowLeft/> К регистрации</a></header><div className="document-heading"><p className="eyebrow">9000 КМ · ДОКУМЕНТЫ</p><h1>{policy?'Политика обработки персональных данных':'Согласие на обработку персональных данных'}</h1><p>АНО «Сообщество любителей массового спорта Югры»</p></div></div></section><main id="content" className="document-layout wrap"><aside className="document-nav"><p className="eyebrow muted">ДОКУМЕНТЫ</p><a href="#rules"><FileText/>Правила участия</a><a href="/policy/" aria-current={policy?'page':undefined}><ShieldCheck/>Политика данных</a><a href="/consent/" aria-current={!policy?'page':undefined}><FileText/>Согласие</a><small>Редакция · 13 ноября 2026</small></aside><article className="document-body supplied-document"><div className="demo-callout">Тестовая версия приложения: регистрация и фиксация согласия на сервере ещё не подключены.</div><DocumentText text={policy?policyText:consentText}/><div className="document-actions"><a className="button primary" href="#registration">К регистрации <ArrowRight/></a><a className="text-link" href="#home">На главную</a></div></article></main></>;
 }
