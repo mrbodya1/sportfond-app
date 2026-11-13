@@ -14,3 +14,5 @@ Registration/legal extension: keep rules acceptance separate from personal-data 
 Rules now incorporate owner-provided prizes and indoor HR/outdoor GPS conditions. Keep missing dates, ages and numerical thresholds explicit; do not invent them. PWA must never cache API or participant uploads. Demo totals must use the shared approved-workout model.
 
 Latest owner decision supersedes indoor HR acceptance: GPS mandatory; no gym/treadmill/no-GPS workouts; any pace. Count workout dates from 2026-10-29 inclusive. Recognition fields: date and km only. Guard against duplicate credit. Do not reintroduce pace, duration or HR requirements.
+
+OpenAI recognition is connected for loopback-only operator testing via the Vite proxy. Never expose recognition_server publicly before authentication. Keep provider key outside source. Live results are real but participant history/credit remains an in-memory test. Files are sent only after the explicit upload-processing checkbox.
