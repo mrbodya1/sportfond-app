@@ -29,6 +29,16 @@ class RecognitionTests(unittest.TestCase):
         with self.assertRaises(RecognitionError):
             self.validate(distance_km=float("nan"))
 
+    def test_day_month_are_used_without_screenshot_year(self):
+        for value in ["2023-11-14", "2026-11-14", "11-14"]:
+            result = validate_result({**VALID, "workout_date": value}, dt.date(2026, 11, 14))
+            self.assertEqual(result["workout_date"], "2026-11-14")
+            self.assertEqual(result["decision"], "eligible_preview")
+        self.assertEqual(self.validate(workout_date="2023-10-28")["decision"], "rejected")
+        self.assertEqual(self.validate(workout_date="11-14")["decision"], "rejected")
+        with self.assertRaises(RecognitionError):
+            self.validate(workout_date="02-30")
+
     def test_no_remote_urls_or_spoofed_mime(self):
         for value in ["https://example.com/image.png", "data:image/png;base64," + base64.b64encode(b"not a png").decode()]:
             with self.assertRaises(RecognitionError):
