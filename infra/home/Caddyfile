@@ -5,6 +5,10 @@
 
 # Connectivity probe only; no application data or authentication over HTTP.
 http://94.50.96.146, http://192.168.1.7 {
+    log {
+        output stdout
+        format json
+    }
     header -Server
     handle /sportfond-connectivity {
         respond "Sportfond connection OK" 200
