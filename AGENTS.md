@@ -22,3 +22,5 @@ Latest implementation supersedes prior demo-only notes: owner requested automati
 Owner UI decision: workout upload shows only the Send button, without the automatic-check heading, OpenAI implementation copy or per-image checkbox. Clicking Send initiates processing; do not auto-submit on file selection. Registration rules and personal-data consent remain separate and unchecked by default.
 
 Owner explicitly authorized replacing the public app maintenance page on 2026-11-13, despite the known DNS blocker for api.sportfondhm.ru. Publish frontend from main with GitHub Pages Actions. Public pages must render without API; show an honest service-unavailable notice and never claim public auth works before API is reachable.
+
+Public API preparation 14.11: backend supports exact public origin with CORS and Secure cookies; infra/home provides Caddy, unprivileged API and daily consistent backup. Router public ports still require explicit action-time confirmation; do not enable old saved port forwards accidentally. Windows network script requires Administrator and checks conflicts. Public readiness is not established by a healthy local container.

@@ -98,6 +98,7 @@ class HttpTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
+        self.root = root
         for name, text in [('app.env', 'SESSION_SECRET='+'s'*48+'\nADMIN_EMAILS=admin@example.test\n'), ('ai.env','OPENAI_API_KEY=fake-not-real\n'), ('mail.env','SMTP_USERNAME=noreply@example.test\nSMTP_PASSWORD=fake\n')]:
             (root/name).write_text(text)
         handler = make_handler(root/'ai.env', root/'mail.env', root/'app.env', root/'data', root/'uploads')
@@ -116,6 +117,7 @@ class HttpTests(unittest.TestCase):
         headers = {'Cookie':self.cookie,'Origin':origin,'Content-Type':'application/json'}
         conn.request('GET' if data is None else 'POST', '/api'+path, None if data is None else json.dumps(data), headers)
         response = conn.getresponse()
+        self.last_headers = dict(response.getheaders())
         status, cookie, raw = response.status, response.getheader('Set-Cookie'), response.read()
         conn.close()
         if cookie:
@@ -154,3 +156,37 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(len(state['admin_workouts']),1)
         self.assertEqual(self.request('/admin/audit')[0],200)
         self.assertEqual(self.request('/recognition',payload)[0],409)
+
+
+class PublicHttpTests(HttpTests):
+    def setUp(self):
+        super().setUp()
+        root = self.root
+        with (root/'app.env').open('a') as f:
+            f.write('APP_PUBLIC_ORIGIN=https://app.sportfondhm.ru\n')
+        self.server.RequestHandlerClass = make_handler(root/'ai.env', root/'mail.env', root/'app.env', root/'data', root/'uploads')
+
+    def request(self, path, data=None, origin='https://app.sportfondhm.ru'):
+        return super().request(path, data, origin)
+
+    def test_secure_cookie_and_cors(self):
+        self.signup('owner@example.test')
+        self.assertIn('; Secure', self.last_headers['Set-Cookie'])
+        self.assertIn('HttpOnly', self.last_headers['Set-Cookie'])
+        self.assertEqual(self.last_headers['Access-Control-Allow-Origin'], 'https://app.sportfondhm.ru')
+        self.assertEqual(self.last_headers['Access-Control-Allow-Credentials'], 'true')
+        self.assertEqual(self.request('/session', origin='https://evil.example')[0],403)
+        self.assertNotIn('Access-Control-Allow-Origin', self.last_headers)
+        self.assertEqual(self.request('/auth/logout', {})[0],200)
+        self.assertIn('Max-Age=0', self.last_headers['Set-Cookie'])
+        self.assertIn('; Secure', self.last_headers['Set-Cookie'])
+
+    def test_preflight_allowlist(self):
+        for origin,method,header,expected in [
+            ('https://app.sportfondhm.ru','POST','content-type',204),
+            ('https://evil.example','POST','content-type',403),
+            ('https://app.sportfondhm.ru','DELETE','content-type',403),
+            ('https://app.sportfondhm.ru','POST','x-unexpected',403)]:
+            conn=http.client.HTTPConnection('127.0.0.1',self.server.server_port)
+            conn.request('OPTIONS','/api/auth/request',headers={'Origin':origin,'Access-Control-Request-Method':method,'Access-Control-Request-Headers':header})
+            r=conn.getresponse();self.assertEqual(r.status,expected);r.read();conn.close()

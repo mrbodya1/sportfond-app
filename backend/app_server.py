@@ -1,4 +1,4 @@
-"""Local release-candidate API: real email login, durable credit, no public exposure."""
+"""Authenticated workout API; public deployment requires a TLS reverse proxy."""
 from contextlib import closing
 import argparse
 import hashlib
@@ -29,6 +29,11 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     cache_path = Path(data_dir) / "recognition.sqlite3"
     uploads = Path(upload_dir); uploads.mkdir(parents=True, exist_ok=True)
     admins = {e.strip().lower() for e in cfg.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+    public_origin = cfg.get("APP_PUBLIC_ORIGIN", "").strip().rstrip("/")
+    if public_origin and public_origin != "https://app.sportfondhm.ru":
+        raise RuntimeError("Unsupported public origin")
+    origins = {public_origin} if public_origin else ORIGINS
+    secure_cookie = bool(public_origin)
     ip_attempts = []
 
     def send_code(email, code):
@@ -59,6 +64,30 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers(); self.wfile.write(body)
 
+        def end_headers(self):
+            origin = self.headers.get("Origin", "")
+            if origin in origins:
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Access-Control-Allow-Credentials", "true")
+            self.send_header("Vary", "Origin")
+            super().end_headers()
+
+        def do_OPTIONS(self):
+            if self.headers.get("Origin") not in origins:
+                self.reply({"error": "origin_not_allowed"}, 403); return
+            requested = {h.strip().lower() for h in self.headers.get("Access-Control-Request-Headers", "").split(",") if h.strip()}
+            if self.headers.get("Access-Control-Request-Method") not in {"GET", "POST"} or not requested.issubset({"content-type"}):
+                self.reply({"error": "request_not_allowed"}, 403); return
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Max-Age", "600")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def session_cookie(self, token, age):
+            return f"sf_session={token}; Path=/api; HttpOnly; SameSite=Strict; Max-Age={age}" + ("; Secure" if secure_cookie else "")
+
         def token(self):
             cookie = SimpleCookie()
             try:
@@ -81,6 +110,11 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def do_GET(self):
             try:
+                origin = self.headers.get("Origin")
+                if origin and origin not in origins:
+                    raise RecognitionError("origin_not_allowed", 403)
+                if self.path == "/api/health":
+                    self.reply({"status": "ok"}); return
                 if self.path == "/api/session":
                     user = store.user(self.token())
                     if not user:
@@ -118,7 +152,7 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def do_POST(self):
             try:
-                if self.headers.get("Origin") not in ORIGINS:
+                if self.headers.get("Origin") not in origins:
                     raise RecognitionError("origin_not_allowed", 403)
                 if self.headers.get_content_type() != "application/json":
                     raise RecognitionError("json_required", 415)
@@ -153,11 +187,11 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                     if not re.fullmatch(r"\d{6}", code) or len(cid) > 100:
                         raise RecognitionError("invalid_code", 400)
                     token = store.verify(cid, code)
-                    self.reply({"authenticated": True}, cookie=f"sf_session={token}; Path=/api; HttpOnly; SameSite=Strict; Max-Age=2592000"); return
+                    self.reply({"authenticated": True}, cookie=self.session_cookie(token, 2592000)); return
                 user = self.user()
                 if self.path == "/api/auth/logout":
                     store.logout(self.token())
-                    self.reply({"ok": True}, cookie="sf_session=; Path=/api; HttpOnly; SameSite=Strict; Max-Age=0"); return
+                    self.reply({"ok": True}, cookie=self.session_cookie("", 0)); return
                 match = re.fullmatch(r"/api/workouts/([a-f0-9]{24})/(delete|restore|decision)", self.path)
                 if match:
                     wid, action = match.groups()
@@ -214,10 +248,40 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     return Handler
 
 
+class BoundedHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    slots = threading.BoundedSemaphore(32)
+
+    def get_request(self):
+        request, address = super().get_request()
+        request.settimeout(30)
+        return request, address
+
+    def process_request(self, request, client_address):
+        if not self.slots.acquire(blocking=False):
+            try:
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            finally:
+                self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self.slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.slots.release()
+
+
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     for flag in ("ai-env", "smtp-env", "app-env", "data-dir", "upload-dir"):
         p.add_argument("--" + flag, required=True)
     p.add_argument("--port", type=int, default=18766)
+    p.add_argument("--bind", default="127.0.0.1")
     args = p.parse_args()
-    ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.ai_env, args.smtp_env, args.app_env, args.data_dir, args.upload_dir)).serve_forever()
+    BoundedHTTPServer((args.bind, args.port), make_handler(args.ai_env, args.smtp_env, args.app_env, args.data_dir, args.upload_dir)).serve_forever()

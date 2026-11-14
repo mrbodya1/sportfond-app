@@ -44,6 +44,7 @@ class Store:
     def challenge(self, email, payload):
         now = time.time()
         with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("DELETE FROM challenges WHERE created<?", (now - 86400,))
             last = db.execute("SELECT MAX(created),COUNT(*) FROM challenges WHERE email=? AND created>?", (email, now - 3600)).fetchone()
             if last[0] and now - last[0] < 60:
@@ -56,6 +57,7 @@ class Store:
 
     def cancel_challenge(self, cid):
         with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("DELETE FROM challenges WHERE id=?", (cid,))
 
     def verify(self, cid, code):

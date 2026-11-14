@@ -1,0 +1,22 @@
+{
+    admin off
+    email sportfondhm@ya.ru
+}
+
+api.sportfondhm.ru {
+    request_body {
+        max_size 7MB
+    }
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    @api path /api/*
+    handle @api {
+        reverse_proxy api:8080
+    }
+    handle {
+        respond "Not found" 404
+    }
+}
