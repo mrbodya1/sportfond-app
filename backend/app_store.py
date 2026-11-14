@@ -27,6 +27,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS workouts(id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, image_hash TEXT UNIQUE NOT NULL, image_file TEXT NOT NULL, workout_date TEXT, distance TEXT, gps INTEGER NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL, evidence TEXT NOT NULL, created REAL NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, actor INTEGER NOT NULL, workout_id TEXT NOT NULL, action TEXT NOT NULL, details TEXT NOT NULL, created REAL NOT NULL);
             ''')
+            # Keep currently valid legacy sessions; never revive expired tokens.
+            db.execute("UPDATE sessions SET expires=0 WHERE expires>?", (time.time(),))
 
     @contextmanager
     def db(self):
@@ -44,6 +46,7 @@ class Store:
     def challenge(self, email, payload):
         now = time.time()
         with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("DELETE FROM challenges WHERE created<?", (now - 86400,))
             last = db.execute("SELECT MAX(created),COUNT(*) FROM challenges WHERE email=? AND created>?", (email, now - 3600)).fetchone()
             if last[0] and now - last[0] < 60:
@@ -56,6 +59,7 @@ class Store:
 
     def cancel_challenge(self, cid):
         with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             db.execute("DELETE FROM challenges WHERE id=?", (cid,))
 
     def verify(self, cid, code):
@@ -80,15 +84,15 @@ class Store:
                 db.execute("INSERT INTO consents(user_id,version,accepted) VALUES (?,?,?)", (user["id"], LEGAL_VERSION, now))
             token = secrets.token_urlsafe(32)
             db.execute("UPDATE challenges SET used=1 WHERE id=?", (cid,))
-            db.execute("INSERT INTO sessions VALUES (?,?,?)", (self.digest(token), user["id"], now + 30 * 86400))
-            db.execute("DELETE FROM sessions WHERE expires<?", (now,))
+            db.execute("INSERT INTO sessions VALUES (?,?,?)", (self.digest(token), user["id"], 0))
+            db.execute("DELETE FROM sessions WHERE expires>0 AND expires<?", (now,))
         return token
 
     def user(self, token):
         if not token:
             return None
         with self.db() as db:
-            row = db.execute("SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token_hash=? AND s.expires>?", (self.digest(token), time.time())).fetchone()
+            row = db.execute("SELECT u.* FROM users u JOIN sessions s ON u.id=s.user_id WHERE s.token_hash=? AND (s.expires=0 OR s.expires>?)", (self.digest(token), time.time())).fetchone()
         return dict(row) if row else None
 
     def logout(self, token):
