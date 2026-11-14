@@ -21,3 +21,5 @@ h1{overflow-wrap:anywhere}.header-link{padding:10px 14px;border-radius:10px;back
 .workout-submit{display:flex;width:100%;justify-content:center;margin:24px auto 12px;min-height:56px}.workout-submit+.form-note{margin-top:0}
 
 .member-admin-button{display:flex;width:100%;justify-content:center;margin:32px auto 24px;min-height:56px;text-decoration:none}
+
+.goal-number{font-size:clamp(42px,7.5vw,100px);font-variant-numeric:tabular-nums}.stats .community-stat{display:block}.community-stat strong{font-variant-numeric:tabular-nums}@media(max-width:600px){.stats .community-stat{grid-column:1/-1;border-left:0;border-top:1px solid #dbe4ef;padding-top:20px;margin-top:18px}.community-stat strong{font-size:clamp(30px,8vw,42px)}}
