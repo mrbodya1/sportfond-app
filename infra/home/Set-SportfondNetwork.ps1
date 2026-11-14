@@ -22,31 +22,47 @@ $proxyState | Set-Content -LiteralPath (Join-Path $backupDir 'portproxy-before.t
 $rules = @(Get-NetFirewallRule -DisplayName 'Sportfond API TCP 80 443' -ErrorAction SilentlyContinue)
 if ($rules.Count) { throw 'A Sportfond firewall rule already exists. Inspect before replacing.' }
 $regPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\PortProxy\v4tov4\tcp'
+$dockerPortCount = 0
 foreach ($port in @(80,443)) {
     if (Test-Path $regPath) {
-        $existing = Get-ItemPropertyValue -Path $regPath -Name "$ListenAddress/$port" -ErrorAction SilentlyContinue
+        $registryValues = Get-ItemProperty -LiteralPath $regPath
+        $existing = $registryValues.PSObject.Properties["$ListenAddress/$port"]
         if ($existing) { throw "Portproxy $ListenAddress/$port already exists. Inspect first." }
     }
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         Where-Object LocalAddress -in @($ListenAddress,'0.0.0.0','::'))
-    if ($listeners.Count) { throw "Port $port is already in use on the LAN address." }
+    if ($listeners.Count) {
+        foreach ($listener in $listeners) {
+            $ownerProcess = Get-Process -Id $listener.OwningProcess -ErrorAction Stop
+            if ($ownerProcess.ProcessName -ne 'com.docker.backend') {
+                throw "Port $port is used by $($ownerProcess.ProcessName). Inspect first."
+            }
+        }
+        $dockerPortCount++
+    }
 }
-Get-Service iphlpsvc | Start-Service
+if ($dockerPortCount -notin @(0,2)) { throw "Mixed Docker/other binding. Inspect first." }
+if ($dockerPortCount -eq 0) { Get-Service iphlpsvc | Start-Service }
 New-NetFirewallRule -DisplayName 'Sportfond API TCP 80 443' -Direction Inbound -Action Allow `
     -Protocol TCP -LocalAddress $ListenAddress -LocalPort 80,443 -InterfaceAlias $local.InterfaceAlias `
     -Profile Any | Out-Null
 try {
+    if ($dockerPortCount -eq 0) {
     foreach ($port in @(80,443)) {
         & netsh interface portproxy add v4tov4 "listenaddress=$ListenAddress" "listenport=$port" "connectaddress=$WslAddress" "connectport=$port"
         if ($LASTEXITCODE -ne 0) { throw "Cannot configure port $port." }
     }
+    }
 } catch {
+    if ($dockerPortCount -eq 0) {
     foreach ($port in @(80,443)) {
         & netsh interface portproxy delete v4tov4 "listenaddress=$ListenAddress" "listenport=$port" | Out-Null
+    }
     }
     Remove-NetFirewallRule -DisplayName 'Sportfond API TCP 80 443' -ErrorAction SilentlyContinue
     throw
 }
+if ($dockerPortCount -eq 2) { Write-Host 'Existing Docker HTTPS ports reused; no portproxy added.' }
 Write-Host 'Configured only LAN TCP ports 80 and 443. VPN, Tailscale and other port mappings were not changed.'
 Write-Host "Backup: $backupDir"
 & netsh interface portproxy show v4tov4
