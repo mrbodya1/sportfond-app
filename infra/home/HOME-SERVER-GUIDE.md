@@ -88,3 +88,5 @@ Map API теперь работает на том же домашнем серв
 
 
 2026-11-15: map preview 4178 uses MapLibre/OpenFreeMap vector styles. API /api/map/tiles/ relays only validated tile/glyph paths with bounded memory cache; map_tiles.py buffers verified gzip byte ranges, font source fixed to maplibre/demotiles. No DNS, ports, router or VPN changes. See sportfond-map/docs/VECTOR-MAP.md.
+
+2026-11-15: map.sportfondhm.ru frontend released from sportfond-map/main. API migrated organizer data to map_organizations (up to 20 per owner), event organization_id and published_organization_id; legacy profile ids and WOOD TRAIL retained. No DNS/ports/VPN changes. Backup snapshot-20261115T184152368376Z.
