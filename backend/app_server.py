@@ -14,6 +14,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from app_store import Store, LEGAL_VERSION
+from partnerships import init_partners, submit_partner, partner_rows, PARTNER_ORIGINS
 from recognition import recognize, validate_result, decode_image, load_config, RecognitionError
 
 ORIGINS = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4174, 4175)}
@@ -26,6 +27,7 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     if len(secret) < 32:
         raise RuntimeError("SESSION_SECRET must be configured")
     store = Store(Path(data_dir) / "app.sqlite3", secret)
+    init_partners(store)
     cache_path = Path(data_dir) / "recognition.sqlite3"
     uploads = Path(upload_dir); uploads.mkdir(parents=True, exist_ok=True)
     admins = {e.strip().lower() for e in cfg.get("ADMIN_EMAILS", "").split(",") if e.strip()}
@@ -66,14 +68,14 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def end_headers(self):
             origin = self.headers.get("Origin", "")
-            if origin in origins:
+            if origin in origins or (self.path == "/api/partners" and origin in PARTNER_ORIGINS):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
             super().end_headers()
 
         def do_OPTIONS(self):
-            if self.headers.get("Origin") not in origins:
+            if self.headers.get("Origin") not in origins and not (self.path == "/api/partners" and self.headers.get("Origin") in PARTNER_ORIGINS):
                 self.reply({"error": "origin_not_allowed"}, 403); return
             requested = {h.strip().lower() for h in self.headers.get("Access-Control-Request-Headers", "").split(",") if h.strip()}
             if self.headers.get("Access-Control-Request-Method") not in {"GET", "POST"} or not requested.issubset({"content-type"}):
@@ -139,6 +141,9 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                     self.send_header("X-Content-Type-Options", "nosniff")
                     self.send_header("Content-Length", str(len(content)))
                     self.end_headers(); self.wfile.write(content); return
+                if self.path == "/api/admin/partners":
+                    self.user(admin=True)
+                    self.reply({"requests": partner_rows(store)}); return
                 if self.path == "/api/admin/audit":
                     self.user(admin=True)
                     with store.db() as db:
@@ -152,16 +157,21 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def do_POST(self):
             try:
-                if self.headers.get("Origin") not in origins:
+                partner_request = self.path == "/api/partners"
+                allowed = PARTNER_ORIGINS if partner_request else origins
+                if self.headers.get("Origin") not in allowed:
                     raise RecognitionError("origin_not_allowed", 403)
                 if self.headers.get_content_type() != "application/json":
                     raise RecognitionError("json_required", 415)
                 size = int(self.headers.get("Content-Length", "0"))
-                if not 0 < size <= 7 * 1024 * 1024:
+                if not 0 < size <= (4096 if partner_request else 7 * 1024 * 1024):
                     raise RecognitionError("request_too_large", 413)
                 data = json.loads(self.rfile.read(size))
                 if not isinstance(data, dict):
                     raise RecognitionError("invalid_request", 400)
+                if partner_request:
+                    submit_partner(store, data, self.client_address[0])
+                    self.reply({"accepted": True, "presentation_ready": False}, 202); return
                 if self.path == "/api/auth/request":
                     now = time.time()
                     ip_attempts[:] = [t for t in ip_attempts if t > now - 3600]
