@@ -16,6 +16,7 @@ from pathlib import Path
 from app_store import Store, LEGAL_VERSION
 from partnerships import init_partners, submit_partner, partner_rows, PARTNER_ORIGINS
 from woodtrail import participants
+from map_service import MapService, MAP_ORIGINS
 from recognition import recognize, validate_result, decode_image, load_config, RecognitionError
 
 ORIGINS = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4174, 4175)}
@@ -31,6 +32,7 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     init_partners(store)
     cache_path = Path(data_dir) / "recognition.sqlite3"
     uploads = Path(upload_dir); uploads.mkdir(parents=True, exist_ok=True)
+    map_service = MapService(store, uploads)
     admins = {e.strip().lower() for e in cfg.get("ADMIN_EMAILS", "").split(",") if e.strip()}
     public_origin = cfg.get("APP_PUBLIC_ORIGIN", "").strip().rstrip("/")
     if public_origin and public_origin != "https://app.sportfondhm.ru":
@@ -39,14 +41,14 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     secure_cookie = bool(public_origin)
     ip_attempts = []
 
-    def send_code(email, code):
+    def send_code(email, code, project="workout"):
         mail = load_config(smtp_env)
         msg = EmailMessage()
         msg["From"] = "Спортфонд <" + mail["SMTP_USERNAME"] + ">"
         msg["To"] = email
         msg["Reply-To"] = "sportfondhm@ya.ru"
-        msg["Subject"] = "Спортфонд — код входа"
-        msg.set_content(f"Код входа в приложение «9000 км»: {code}\n\nКод действует 10 минут. Никому его не сообщайте. Если вы не запрашивали вход, проигнорируйте письмо.")
+        msg["Subject"] = "Карта спорта Югры — код входа" if project == "map" else "Спортфонд — код входа"
+        msg.set_content(f"Код входа: {code}\n\nСервис: {'Карта спорта Югры — кабинет организатора' if project == 'map' else 'Приложение 9000 км'}.\nКод действует 10 минут. Никому его не сообщайте. Если вы не запрашивали вход, проигнорируйте письмо.")
         with smtplib.SMTP_SSL("smtp.beget.com", 465, timeout=20, context=ssl.create_default_context()) as smtp:
             smtp.login(mail["SMTP_USERNAME"], mail["SMTP_PASSWORD"])
             if smtp.send_message(msg):
@@ -69,14 +71,14 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def end_headers(self):
             origin = self.headers.get("Origin", "")
-            if origin in origins or ((self.path == "/api/partners" or self.path.startswith("/api/woodtrail/participants/")) and origin in PARTNER_ORIGINS):
+            if (self.path.startswith("/api/map/") and origin in MAP_ORIGINS) or origin in origins or ((self.path == "/api/partners" or self.path.startswith("/api/woodtrail/participants/")) and origin in PARTNER_ORIGINS):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
             super().end_headers()
 
         def do_OPTIONS(self):
-            if self.headers.get("Origin") not in origins and not (self.path == "/api/partners" and self.headers.get("Origin") in PARTNER_ORIGINS):
+            if self.headers.get("Origin") not in origins and not (self.path == "/api/partners" and self.headers.get("Origin") in PARTNER_ORIGINS) and not (self.path.startswith("/api/map/") and self.headers.get("Origin") in MAP_ORIGINS):
                 self.reply({"error": "origin_not_allowed"}, 403); return
             requested = {h.strip().lower() for h in self.headers.get("Access-Control-Request-Headers", "").split(",") if h.strip()}
             if self.headers.get("Access-Control-Request-Method") not in {"GET", "POST"} or not requested.issubset({"content-type"}):
@@ -87,6 +89,16 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
             self.send_header("Access-Control-Max-Age", "600")
             self.send_header("Content-Length", "0")
             self.end_headers()
+
+        def map_token(self):
+            cookie=SimpleCookie()
+            try:
+                cookie.load(self.headers.get("Cookie",""))
+                return cookie["sf_map_session"].value if "sf_map_session" in cookie else ""
+            except Exception:return ""
+
+        def map_cookie(self,token):
+            return f"sf_map_session={token}; Path=/api/map; HttpOnly; SameSite=Strict; Max-Age={34560000 if token else 0}" + ("; Secure" if self.headers.get("Origin", "").startswith("https://") else "")
 
         def session_cookie(self, token, age):
             return f"sf_session={token}; Path=/api; HttpOnly; SameSite=Strict; Max-Age={age}" + ("; Secure" if secure_cookie else "")
@@ -114,6 +126,16 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
         def do_GET(self):
             try:
                 origin = self.headers.get("Origin")
+                if self.path.startswith("/api/map/"):
+                    if origin and origin not in MAP_ORIGINS:raise RecognitionError("origin_not_allowed",403)
+                    token = self.map_token()
+                    if self.path.startswith("/api/map/posters/"):
+                        file = map_service.image_path(self.path.rsplit("/",1)[-1],token)
+                        content=file.read_bytes();self.send_response(200)
+                        self.send_header("Content-Type",{".png":"image/png",".jpg":"image/jpeg",".webp":"image/webp"}[file.suffix])
+                        self.send_header("Cache-Control","no-store");self.send_header("X-Content-Type-Options","nosniff")
+                        self.send_header("Content-Length",str(len(content)));self.end_headers();self.wfile.write(content);return
+                    self.reply(map_service.get(self.path,token));return
                 if origin and origin not in origins and not (self.path.startswith("/api/woodtrail/participants/") and origin in PARTNER_ORIGINS):
                     raise RecognitionError("origin_not_allowed", 403)
                 participant_match = re.fullmatch(r"/api/woodtrail/participants/(700m|1500m|3km|10km|30km|relay)", self.path)
@@ -161,6 +183,17 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def do_POST(self):
             try:
+                if self.path.startswith("/api/map/"):
+                    if self.headers.get("Origin") not in MAP_ORIGINS:raise RecognitionError("origin_not_allowed",403)
+                    if self.headers.get_content_type()!="application/json":raise RecognitionError("json_required",415)
+                    try:size=int(self.headers.get("Content-Length","0"))
+                    except ValueError:raise RecognitionError("invalid_request",400)
+                    if not 0<size<=7*1024*1024:raise RecognitionError("request_too_large",413)
+                    try:data=json.loads(self.rfile.read(size))
+                    except (ValueError,UnicodeError):raise RecognitionError("invalid_request",400)
+                    if not isinstance(data,dict):raise RecognitionError("invalid_request",400)
+                    result,new_token=map_service.post(self.path,data,self.map_token(),lambda email,code:send_code(email,code,"map"))
+                    self.reply(result,cookie=self.map_cookie(new_token) if new_token is not None else None);return
                 partner_request = self.path == "/api/partners"
                 allowed = PARTNER_ORIGINS if partner_request else origins
                 if self.headers.get("Origin") not in allowed:
