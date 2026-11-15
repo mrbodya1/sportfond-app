@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from app_store import Store, LEGAL_VERSION
 from partnerships import init_partners, submit_partner, partner_rows, PARTNER_ORIGINS
+from woodtrail import participants
 from recognition import recognize, validate_result, decode_image, load_config, RecognitionError
 
 ORIGINS = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4174, 4175)}
@@ -68,7 +69,7 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
 
         def end_headers(self):
             origin = self.headers.get("Origin", "")
-            if origin in origins or (self.path == "/api/partners" and origin in PARTNER_ORIGINS):
+            if origin in origins or ((self.path == "/api/partners" or self.path.startswith("/api/woodtrail/participants/")) and origin in PARTNER_ORIGINS):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Access-Control-Allow-Credentials", "true")
             self.send_header("Vary", "Origin")
@@ -113,8 +114,11 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
         def do_GET(self):
             try:
                 origin = self.headers.get("Origin")
-                if origin and origin not in origins:
+                if origin and origin not in origins and not (self.path.startswith("/api/woodtrail/participants/") and origin in PARTNER_ORIGINS):
                     raise RecognitionError("origin_not_allowed", 403)
+                participant_match = re.fullmatch(r"/api/woodtrail/participants/(700m|1500m|3km|10km|30km|relay)", self.path)
+                if participant_match:
+                    self.reply(participants(data_dir,participant_match[1])); return
                 if self.path == "/api/health":
                     self.reply({"status": "ok"}); return
                 if self.path == "/api/session":
