@@ -85,3 +85,6 @@ Map API теперь работает на том же домашнем серв
 Локальный frontend:http://127.0.0.1:4178/organizers.html и moderation.html. Локальный Caddy проксирует /api/map на127.0.0.1:18767 через host.docker.internal; прямой статический файловый просмотр для входа не подходит.
 Карта/кабинеты сохранены в mrbodya1/sportfond-map ветка design/first-draft, сервер — mrbodya1/sportfond-app ветка feature/partner-enquiries. Frontend пока только в черновике, map production не переключался.
 Афиши map-<sha256>.<ext> находятся в runtime/uploads; обновлённый backup_data.py резервирует текущие и опубликованные афиши вместе с базой. Подробный процесс/поля/проверки см.docs/ORGANIZERS.md репозитория sportfond-map.
+
+
+2026-11-15: map preview 4178 uses MapLibre/OpenFreeMap vector styles. API /api/map/tiles/ relays only validated tile/glyph paths with bounded memory cache; map_tiles.py buffers verified gzip byte ranges, font source fixed to maplibre/demotiles. No DNS, ports, router or VPN changes. See sportfond-map/docs/VECTOR-MAP.md.

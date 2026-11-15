@@ -17,6 +17,7 @@ from app_store import Store, LEGAL_VERSION
 from partnerships import init_partners, submit_partner, partner_rows, PARTNER_ORIGINS
 from woodtrail import participants
 from map_service import MapService, MAP_ORIGINS
+from map_tiles import resource as map_resource
 from recognition import recognize, validate_result, decode_image, load_config, RecognitionError
 
 ORIGINS = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (4174, 4175)}
@@ -128,6 +129,17 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                 origin = self.headers.get("Origin")
                 if self.path.startswith("/api/map/"):
                     if origin and origin not in MAP_ORIGINS:raise RecognitionError("origin_not_allowed",403)
+                    if self.path.startswith("/api/map/tiles/"):
+                        try: content,kind=map_resource(self.path[len("/api/map/tiles"):])
+                        except ValueError:
+                            self.send_error(404);return
+                        except Exception:
+                            self.send_error(503,"Map resource unavailable");return
+                        self.send_response(200);self.send_header("Content-Type",kind)
+                        self.send_header("Content-Length",str(len(content)))
+                        self.send_header("Cache-Control","public, max-age=86400")
+                        self.send_header("X-Content-Type-Options","nosniff")
+                        self.end_headers();self.wfile.write(content);return
                     token = self.map_token()
                     if self.path.startswith("/api/map/posters/"):
                         file = map_service.image_path(self.path.rsplit("/",1)[-1],token)
