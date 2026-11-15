@@ -75,3 +75,13 @@ mrbodya1/sportfond-app: приложение и серверный код. Но�
 mrbodya1/sportfond-map: отдельная карта.
 Не заменять корень sportfond только сборкой WOOD TRAIL: сохранять портал,CNAME и существующие страницы.
 Подробный журнал:NETWORK-STATE.md. При противоречии сначала сверять текущие конфигурации и этот сводный документ, а не старую промежуточную запись.
+
+## 15 ноября 2026 — добавлен отдельный HTTPS PACE
+
+Общий Caddyfile теперь также обслуживает pace-api.sportfondhm.ru: CNAME на api.sportfondhm.ru, reverse_proxy host.docker.internal:8091 к закрытому Windows gateway PACE, затем PocketBase127.0.0.1:8090. Существующая секция Sportfond не изменялась. Caddy validate пройден; SIGUSR1 на2.11.9 применил файл без остановки контейнера (ID/StartedAt сохранены). Сертификат получен автоматически; PACE и Sportfond health200, внешний PACE health200 подтверждён владельцем с мобильной сети. Новых портов или правил firewall не создавалось. Не удалять блок PACE при будущих изменениях общего файла. Подробности: D:/Applications/PACE/Project/docs/direct-https.md. По последующему прямому указанию владельца старый Funnel PACE полностью отключён: serve/funnel status No serve config. PACE использует только новый прямой HTTPS; установленной версии со старым URL потребуется обновление. Tailscale остаётся только отдельным административным каналом. API-контейнер Sportfond и его данные не перезапускались/не менялись.
+
+## Карта: кабинеты и администрирование — 15.11.2026
+Map API теперь работает на том же домашнем сервере, namespace /api/map, отдельная cookie и отдельные таблицы map_* в приватной app.sqlite3. Администратор только подтверждённая почта89821575459@ya.ru; код backend/map_service.py.
+Локальный frontend:http://127.0.0.1:4178/organizers.html и moderation.html. Локальный Caddy проксирует /api/map на127.0.0.1:18767 через host.docker.internal; прямой статический файловый просмотр для входа не подходит.
+Карта/кабинеты сохранены в mrbodya1/sportfond-map ветка design/first-draft, сервер — mrbodya1/sportfond-app ветка feature/partner-enquiries. Frontend пока только в черновике, map production не переключался.
+Афиши map-<sha256>.<ext> находятся в runtime/uploads; обновлённый backup_data.py резервирует текущие и опубликованные афиши вместе с базой. Подробный процесс/поля/проверки см.docs/ORGANIZERS.md репозитория sportfond-map.
