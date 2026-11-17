@@ -130,6 +130,32 @@ class Store:
             db.execute("INSERT INTO audit(actor,workout_id,action,details,created) VALUES (?,?,?,?,?)", (user_id, wid, "auto_" + status, json.dumps({"date": date, "distance": distance}), time.time()))
         return wid, False
 
+    def queued(self):
+        with self.db() as db:
+            rows = db.execute("SELECT * FROM workouts WHERE deleted=0 AND status='pending' ORDER BY created").fetchall()
+        return [dict(r) for r in rows if json.loads(r["evidence"]).get("queue") is True]
+
+    def finish_queued(self, wid, evidence):
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM workouts WHERE id=? AND deleted=0 AND status='pending'", (wid,)).fetchone()
+            if not row or json.loads(row["evidence"]).get("queue") is not True:
+                return False
+            date, distance = evidence["workout_date"], evidence["distance_km"]
+            if distance is not None:
+                distance = float(Decimal(str(distance)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            status = {"eligible_preview": "approved", "manual_review": "pending", "rejected": "rejected"}[evidence["decision"]]
+            reason = evidence["reason"]
+            if distance is not None and distance <= 0:
+                status, reason = "rejected", "Дистанция меньше точности учёта — 0,01 км."
+            if status == "approved":
+                previous = db.execute("SELECT distance FROM workouts WHERE id<>? AND user_id=? AND workout_date=? AND status IN ('approved','pending')", (wid, row["user_id"], date)).fetchall()
+                if any(r[0] and Decimal(r[0]) == Decimal(str(distance)) for r in previous):
+                    status, reason = "pending", "Похожая тренировка за эту дату уже есть. Проверяем возможный повтор."
+            db.execute("UPDATE workouts SET workout_date=?,distance=?,gps=?,status=?,reason=?,evidence=? WHERE id=?", (date, str(distance) if distance is not None else None, int(evidence["gps_route"]=="present"), status, reason, json.dumps(evidence, ensure_ascii=False), wid))
+            db.execute("INSERT INTO audit(actor,workout_id,action,details,created) VALUES (?,?,?,?,?)", (row["user_id"], wid, "auto_"+status, "{}", time.time()))
+            return True
+
     def rows(self, user_id=None, admin=False):
         with self.db() as db:
             sql = "SELECT w.*,u.name,u.email FROM workouts w JOIN users u ON u.id=w.user_id WHERE w.deleted=0"
@@ -175,7 +201,7 @@ class Store:
         with self.db() as db:
             if not db.execute("SELECT id FROM workouts WHERE id=? AND deleted=0", (wid,)).fetchone():
                 raise RecognitionError("not_found", 404)
-            db.execute("UPDATE workouts SET status=?,workout_date=?,distance=?,gps=?,reason=? WHERE id=?", (status, date, str(distance) if distance is not None else None, int(bool(data.get("gpsConfirmed"))), reason or "Подтверждено модератором.", wid))
+            db.execute("UPDATE workouts SET status=?,workout_date=?,distance=?,gps=?,reason=?,evidence=? WHERE id=?", (status, date, str(distance) if distance is not None else None, int(bool(data.get("gpsConfirmed"))), reason or "Подтверждено модератором.", json.dumps({"manual": True}), wid))
             db.execute("INSERT INTO audit(actor,workout_id,action,details,created) VALUES (?,?,?,?,?)", (actor, wid, status, json.dumps(data), time.time()))
 
     def overview(self, current_id=None):
