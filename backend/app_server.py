@@ -1,6 +1,7 @@
 """Authenticated workout API; public deployment requires a TLS reverse proxy."""
 from contextlib import closing
 import argparse
+import base64
 import hashlib
 import json
 import re
@@ -35,6 +36,9 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
     origins = {public_origin} if public_origin else ORIGINS
     secure_cookie = bool(public_origin)
     ip_attempts = []
+    hourly_limit = int(cfg.get("RECOGNITION_HOURLY_LIMIT", "300"))
+    if hourly_limit < 1:
+        raise RuntimeError("RECOGNITION_HOURLY_LIMIT must be positive")
 
     def send_code(email, code):
         mail = load_config(smtp_env)
@@ -48,6 +52,43 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
             smtp.login(mail["SMTP_USERNAME"], mail["SMTP_PASSWORD"])
             if smtp.send_message(msg):
                 raise RuntimeError("recipient_refused")
+
+    def queue_worker():
+        while True:
+            time.sleep(5)
+            if not gate.acquire(blocking=False):
+                continue
+            try:
+                for row in store.queued()[:1]:
+                    with closing(sqlite3.connect(cache_path)) as cache:
+                        cache.execute("CREATE TABLE IF NOT EXISTS results(hash TEXT PRIMARY KEY,result TEXT NOT NULL)")
+                        cache.execute("CREATE TABLE IF NOT EXISTS attempts(time REAL NOT NULL)")
+                        cached = cache.execute("SELECT result FROM results WHERE hash=?", (row["image_hash"],)).fetchone()
+                        if cached:
+                            evidence = validate_result({k: json.loads(cached[0])[k] for k in ("workout_date", "distance_km", "gps_route", "activity", "readable", "notes")})
+                        else:
+                            now = time.time()
+                            cache.execute("DELETE FROM attempts WHERE time<?", (now - 3600,))
+                            if cache.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] >= hourly_limit:
+                                cache.commit()
+                                continue
+                            file = uploads / row["image_file"]
+                            mime = {".png":"image/png", ".jpg":"image/jpeg", ".webp":"image/webp"}[file.suffix]
+                            data_url = f"data:{mime};base64,{base64.b64encode(file.read_bytes()).decode()}"
+                            cache.execute("INSERT INTO attempts VALUES (?)", (now,)); cache.commit()
+                            try:
+                                evidence = recognize(data_url, load_config(ai_env))
+                            except RecognitionError as exc:
+                                print("queued recognition fallback:", exc.code, flush=True)
+                                evidence = {"workout_date":None, "distance_km":None, "gps_route":"unclear", "activity":"unclear", "readable":False, "notes":"", "decision":"manual_review", "reason":"Автоматическая проверка недоступна. Нужна ручная проверка."}
+                            else:
+                                cache.execute("INSERT OR REPLACE INTO results VALUES (?,?)", (row["image_hash"], json.dumps(evidence, ensure_ascii=False)))
+                            cache.commit()
+                    store.finish_queued(row["id"], evidence)
+            except Exception as exc:
+                print("recognition queue error:", type(exc).__name__, flush=True)
+            finally:
+                gate.release()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -211,33 +252,48 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                     if old["user_id"] != user["id"]:
                         raise RecognitionError("duplicate_image", 409)
                     self.reply({"duplicate": True, "workout_id": old["id"], "deleted": bool(old["deleted"]), **self.state(user)}); return
-                if not gate.acquire(blocking=False):
-                    raise RecognitionError("recognition_busy", 429)
+                def manual_evidence(reason, queued=False):
+                    return {"workout_date": None, "distance_km": None, "gps_route": "unknown",
+                            "activity": "unknown", "readable": False, "notes": "",
+                            "decision": "manual_review", "reason": reason, "queue": queued}
+
+                evidence = None
+                if gate.acquire(blocking=False):
+                    try:
+                        with closing(sqlite3.connect(cache_path)) as cache:
+                            cache.execute("CREATE TABLE IF NOT EXISTS results(hash TEXT PRIMARY KEY,result TEXT NOT NULL)")
+                            cache.execute("CREATE TABLE IF NOT EXISTS attempts(time REAL NOT NULL)")
+                            cached = cache.execute("SELECT result FROM results WHERE hash=?", (digest,)).fetchone()
+                            if cached:
+                                evidence = validate_result({k: json.loads(cached[0])[k] for k in ("workout_date", "distance_km", "gps_route", "activity", "readable", "notes")})
+                            else:
+                                now = time.time()
+                                cache.execute("DELETE FROM attempts WHERE time<?", (now - 3600,))
+                                if cache.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] >= hourly_limit:
+                                    evidence = manual_evidence("Ожидает автоматической проверки: часовой лимит достигнут.", True)
+                                else:
+                                    cache.execute("INSERT INTO attempts VALUES (?)", (now,)); cache.commit()
+                                    try:
+                                        evidence = recognize(data["image"], load_config(ai_env))
+                                    except RecognitionError as exc:
+                                        evidence = manual_evidence("Автоматическая проверка недоступна. Тренировка передана на ручную проверку.")
+                                        print("recognition fallback:", exc.code, flush=True)
+                                    else:
+                                        cache.execute("INSERT OR REPLACE INTO results VALUES (?,?)", (digest, json.dumps(evidence, ensure_ascii=False)))
+                            cache.commit()
+                    finally:
+                        gate.release()
+                else:
+                    evidence = manual_evidence("Ожидает автоматической проверки.", True)
+                filename = digest + {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}[mime]
+                file = uploads / filename
                 try:
-                    with closing(sqlite3.connect(cache_path)) as cache:
-                        cache.execute("CREATE TABLE IF NOT EXISTS results(hash TEXT PRIMARY KEY,result TEXT NOT NULL)")
-                        cache.execute("CREATE TABLE IF NOT EXISTS attempts(time REAL NOT NULL)")
-                        cached = cache.execute("SELECT result FROM results WHERE hash=?", (digest,)).fetchone()
-                        if cached:
-                            evidence = validate_result({k: json.loads(cached[0])[k] for k in ("workout_date", "distance_km", "gps_route", "activity", "readable", "notes")})
-                        else:
-                            now = time.time()
-                            cache.execute("DELETE FROM attempts WHERE time<?", (now - 3600,))
-                            if cache.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] >= 10:
-                                raise RecognitionError("recognition_hourly_limit", 429)
-                            cache.execute("INSERT INTO attempts VALUES (?)", (now,)); cache.commit()
-                            evidence = recognize(data["image"], load_config(ai_env))
-                            cache.execute("INSERT OR REPLACE INTO results VALUES (?,?)", (digest, json.dumps(evidence, ensure_ascii=False)))
-                        cache.commit()
-                    filename = digest + {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}[mime]
-                    file = uploads / filename
-                    if not file.exists():
-                        with file.open("xb") as target:
-                            target.write(image)
-                    wid, duplicate = store.record(user["id"], digest, filename, evidence)
-                    self.reply({"duplicate": duplicate, "workout_id": wid, "recognition": evidence, **self.state(user)})
-                finally:
-                    gate.release()
+                    with file.open("xb") as target:
+                        target.write(image)
+                except FileExistsError:
+                    pass
+                wid, duplicate = store.record(user["id"], digest, filename, evidence)
+                self.reply({"duplicate": duplicate, "workout_id": wid, "recognition": evidence, **self.state(user)})
             except RecognitionError as exc:
                 self.reply({"error": exc.code}, exc.status)
             except (ValueError, TypeError, AttributeError):
@@ -245,6 +301,8 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
             except Exception:
                 self.reply({"error": "internal_error"}, 500)
 
+    if cfg.get("RECOGNITION_QUEUE_ENABLED", "1") == "1":
+        threading.Thread(target=queue_worker, daemon=True, name="recognition-queue").start()
     return Handler
 
 
