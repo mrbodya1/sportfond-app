@@ -14,6 +14,15 @@ from recognition import FIRST_DATE, RecognitionError
 LEGAL_VERSION = "2026-11-13-gps-29oct"
 
 
+def valid_name_part(value):
+    return isinstance(value,str) and 1<=len(value)<=50 and all(any(c.isalpha() for c in word) and all(c.isalpha() or c in "-'’" for c in word) for word in value.split())
+
+
+def has_full_name(name):
+    parts=name.split() if isinstance(name,str) else []
+    return len(parts)>=2 and len(name)<=100 and valid_name_part(parts[0]) and valid_name_part(" ".join(parts[1:]))
+
+
 class Store:
     def __init__(self, path, secret):
         self.path, self.secret = str(path), secret.encode()
@@ -178,6 +187,21 @@ class Store:
             db.execute("UPDATE workouts SET status=?,workout_date=?,distance=?,gps=?,reason=? WHERE id=?", (status, date, str(distance) if distance is not None else None, int(bool(data.get("gpsConfirmed"))), reason or "Подтверждено модератором.", wid))
             db.execute("INSERT INTO audit(actor,workout_id,action,details,created) VALUES (?,?,?,?,?)", (actor, wid, status, json.dumps(data), time.time()))
 
+    def update_profile(self,user_id,first_name,last_name):
+        if not isinstance(first_name,str) or not isinstance(last_name,str):
+            raise RecognitionError("full_name_required",400)
+        first_name=" ".join(first_name.split());last_name=" ".join(last_name.split())
+        full_name=first_name+" "+last_name
+        if not valid_name_part(first_name) or not valid_name_part(last_name) or not has_full_name(full_name):
+            raise RecognitionError("full_name_required",400)
+        with self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old=db.execute("SELECT name FROM users WHERE id=?",(user_id,)).fetchone()
+            if not old:raise RecognitionError("authentication_required",401)
+            if old["name"]!=full_name:
+                db.execute("UPDATE users SET name=? WHERE id=?",(full_name,user_id))
+                db.execute("INSERT INTO audit(actor,workout_id,action,details,created) VALUES(?,?,'profile_updated',?,?)",(user_id,"",json.dumps({"name":full_name},ensure_ascii=False),time.time()))
+
     def overview(self, current_id=None):
         with self.db() as db:
             users = db.execute("SELECT id,name FROM users ORDER BY id").fetchall()
@@ -186,5 +210,6 @@ class Store:
         for user in users:
             values = [Decimal(r["distance"]) for r in rows if r["user_id"] == user["id"] and r["distance"]]
             distance = sum(values, Decimal(0)); total += distance
+            if not has_full_name(user["name"]):continue
             out.append({"id": "me" if user["id"] == current_id else str(user["id"]), "name": user["name"] if current_id is not None else f"Участник {user['id']}", "distance": float(distance), "count": len(values)})
         return {"total": float(total), "participants": sorted(out, key=lambda x: -x["distance"])}

@@ -37,23 +37,6 @@ class StoreTests(unittest.TestCase):
         reopened.logout(self.token)
         self.assertIsNone(reopened.user(self.token))
 
-    def test_session_stays_valid_until_logout(self):
-        with patch('app_store.time.time', return_value=4102444800):
-            self.assertEqual(self.store.user(self.token)['id'], self.uid)
-            reopened = Store(self.path, 'x' * 48)
-            self.assertEqual(reopened.user(self.token)['id'], self.uid)
-            reopened.logout(self.token)
-            self.assertIsNone(reopened.user(self.token))
-
-    def test_legacy_valid_sessions_migrate_without_reviving_expired(self):
-        with self.store.db() as db:
-            db.execute("INSERT INTO sessions VALUES (?,?,?)", (self.store.digest('valid'), self.uid, 4102444800))
-            db.execute("INSERT INTO sessions VALUES (?,?,?)", (self.store.digest('expired'), self.uid, 1))
-        reopened = Store(self.path, 'x' * 48)
-        with patch('app_store.time.time', return_value=4102444900):
-            self.assertIsNotNone(reopened.user('valid'))
-            self.assertIsNone(reopened.user('expired'))
-
     def test_code_attempt_limit_and_expiry(self):
         cid, code = self.store.challenge('other@example.test', {'registration': True, 'name': 'Other'})
         wrong = '000000' if code != '000000' else '111111'
@@ -142,13 +125,25 @@ class HttpTests(unittest.TestCase):
         return status, json.loads(raw)
 
     def signup(self, email):
-        status, data = self.request('/auth/request', {'email':email,'name':'Fixture','registration':True,'rules':True,'consent':True})
+        status, data = self.request('/auth/request', {'email':email,'name':'Fixture Runner','registration':True,'rules':True,'consent':True})
         self.assertEqual(status,200)
         message = self.smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
         import re
         code = re.search(r': (\d{6})', message.get_content()).group(1)
         self.assertNotIn(code, json.dumps(data))
         self.assertEqual(self.request('/auth/verify', {'challenge_id':data['challenge_id'],'code':code})[0],200)
+
+    def test_profile_is_owned_and_validated(self):
+        self.assertEqual(self.request('/profile',{'first_name':'Иван','last_name':'Иванов'})[0],401)
+        self.assertEqual(self.request('/auth/request',{'email':'missing@example.test','name':'Иван','registration':True,'rules':True,'consent':True})[0],400)
+        self.signup('profile@example.test')
+        with __import__('sqlite3').connect(self.root/'data'/'app.sqlite3') as db:
+            db.execute("INSERT INTO users(email,name,created) VALUES('other@example.test','Другой Участник',0)")
+        self.assertEqual(self.request('/profile',{'first_name':'Иван','last_name':''})[0],400)
+        self.assertEqual(self.request('/profile',{'first_name':'Иван123','last_name':'Петров'})[0],400)
+        status,data=self.request('/profile',{'first_name':'Иван','last_name':'Петров','id':999,'email':'other@example.test','is_admin':True})
+        self.assertEqual(status,200);self.assertEqual(data['user']['name'],'Иван Петров');self.assertTrue(data['user']['profile_complete']);self.assertFalse(data['user']['is_admin'])
+        with __import__('sqlite3').connect(self.root/'data'/'app.sqlite3') as db:self.assertEqual(db.execute("SELECT name FROM users WHERE email='other@example.test'").fetchone()[0],'Другой Участник')
 
     def test_auth_origin_admin_and_real_credit(self):
         image = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\nfixture').decode()

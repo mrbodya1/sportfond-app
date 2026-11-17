@@ -13,7 +13,7 @@ from email.message import EmailMessage
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from app_store import Store, LEGAL_VERSION
+from app_store import Store, LEGAL_VERSION, has_full_name
 from partnerships import init_partners, submit_partner, partner_rows, PARTNER_ORIGINS
 from woodtrail import participants
 from map_service import MapService, MAP_ORIGINS
@@ -122,7 +122,7 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
             return user
 
         def state(self, user):
-            return {"user": {k: user[k] for k in ("id", "name", "email", "is_admin")}, "workouts": store.rows(user["id"]), "admin_workouts": store.rows(admin=True) if user["is_admin"] else [], **store.overview(user["id"])}
+            return {"user": {**{k: user[k] for k in ("id", "name", "email", "is_admin")}, "profile_complete":has_full_name(user["name"])}, "workouts": store.rows(user["id"]), "admin_workouts": store.rows(admin=True) if user["is_admin"] else [], **store.overview(user["id"])}
 
         def do_GET(self):
             try:
@@ -233,6 +233,8 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                     name = str(data.get("name", "")).strip()
                     if registration and (not 2 <= len(name) <= 100 or data.get("rules") is not True or data.get("consent") is not True):
                         raise RecognitionError("registration_consent_required", 400)
+                    if registration and not has_full_name(name):
+                        raise RecognitionError("full_name_required",400)
                     cid, code = store.challenge(email, {"registration": registration, "name": name, "consent": registration})
                     ip_attempts.append(now)
                     try:
@@ -251,6 +253,9 @@ def make_handler(ai_env, smtp_env, app_env, data_dir, upload_dir):
                 if self.path == "/api/auth/logout":
                     store.logout(self.token())
                     self.reply({"ok": True}, cookie=self.session_cookie("", 0)); return
+                if self.path == "/api/profile":
+                    store.update_profile(user["id"],data.get("first_name"),data.get("last_name"))
+                    self.reply(self.state(self.user()));return
                 match = re.fullmatch(r"/api/workouts/([a-f0-9]{24})/(delete|restore|decision)", self.path)
                 if match:
                     wid, action = match.groups()
