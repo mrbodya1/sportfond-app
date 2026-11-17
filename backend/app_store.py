@@ -186,5 +186,5 @@ class Store:
         for user in users:
             values = [Decimal(r["distance"]) for r in rows if r["user_id"] == user["id"] and r["distance"]]
             distance = sum(values, Decimal(0)); total += distance
-            out.append({"id": "me" if user["id"] == current_id else str(user["id"]), "name": user["name"] if user["id"] == current_id else f"Участник {user['id']}", "distance": float(distance), "count": len(values)})
+            out.append({"id": "me" if user["id"] == current_id else str(user["id"]), "name": user["name"] if current_id is not None else f"Участник {user['id']}", "distance": float(distance), "count": len(values)})
         return {"total": float(total), "participants": sorted(out, key=lambda x: -x["distance"])}
