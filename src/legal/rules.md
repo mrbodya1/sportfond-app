@@ -118,6 +118,4 @@
 
 Электронная почта: **sportfondhm@ya.ru**
 
-Сайт: https://sportfondhm.ru/
-
 Приложение: https://app.sportfondhm.ru/
