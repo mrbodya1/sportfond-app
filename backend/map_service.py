@@ -136,6 +136,25 @@ class MapService:
             if not lo<=e[k]<=hi:fail("invalid_coordinates")
         e["registration_url"]=url(data,"registration_url");e["website"]=url(data,"website")
         return e
+    def route(self, segments):
+        if segments is None:
+            return None
+        if not isinstance(segments, list) or not 1 <= len(segments) <= 128:
+            fail("invalid_route")
+        count = 0
+        for segment in segments:
+            if not isinstance(segment, list) or len(segment) < 2:
+                fail("invalid_route")
+            count += len(segment)
+            if count > 20000:
+                fail("invalid_route")
+            for point in segment:
+                if (not isinstance(point, list) or len(point) != 2
+                        or any(type(value) not in (int, float) for value in point)
+                        or not -180 <= point[0] <= 180 or not -90 <= point[1] <= 90):
+                    fail("invalid_route")
+        return segments
+
     def poster(self,data):
         image,mime=decode_image(data);suffix={"image/png":".png","image/jpeg":".jpg","image/webp":".webp"}[mime]
         valid=(mime=="image/png"and image.startswith(b"\x89PNG\r\n\x1a\n"))or(mime=="image/jpeg"and image.startswith(b"\xff\xd8\xff"))or(mime=="image/webp"and image.startswith(b"RIFF")and image[8:12]==b"WEBP")
@@ -149,6 +168,10 @@ class MapService:
             db.execute("BEGIN IMMEDIATE")
             old=db.execute("SELECT * FROM map_events WHERE id=?",(eid,)).fetchone()
             if old and old["owner"]!=u["id"]:fail("forbidden",403)
+            if "route" in data:
+                e["route"] = self.route(data["route"])
+            elif old and "route" in json.loads(old["data"]):
+                e["route"] = json.loads(old["data"])["route"]
             oid=txt(data,"organization_id",0,32)or(old["organization_id"]if old else"")
             if not oid:
                 organizations=db.execute("SELECT id FROM map_organizations WHERE owner=?",(u["id"],)).fetchall()
