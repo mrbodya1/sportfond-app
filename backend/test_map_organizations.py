@@ -55,3 +55,17 @@ class OrganizationTest(unittest.TestCase):
   self.assertEqual(len(again.profiles(u["id"])),1)
   self.assertEqual(again.event_rows(public=True)[0]["organization_id"],u["id"])
   self.assertEqual(again.profile(u["id"])["status"],"approved")
+
+ def test_owner_hides_published_event_without_losing_draft(self):
+  owner,_=self.login("owner-hide@example.com");other,_=self.login("other-hide@example.com");admin,_=self.login(ADMIN_EMAIL)
+  profile=self.organization(owner,"Организация");self.approve(profile,admin)
+  eid=self.publish(owner,admin,profile["id"],"Опубликованный старт")
+  with self.assertRaises(RecognitionError):self.m.hide_event(other,{"id":eid,"version":3})
+  with self.assertRaises(RecognitionError):self.m.hide_event(owner,{"id":eid,"version":2})
+  self.assertEqual(len(self.m.event_rows(public=True)),1)
+  self.m.hide_event(owner,{"id":eid,"version":3})
+  self.assertEqual(self.m.event_rows(public=True),[])
+  event=self.m.event_rows(owner["id"])[0]
+  self.assertEqual((event["status"],event["published"],event["data"]["title"]),("draft",False,"Опубликованный старт"))
+  self.m.submit(owner,{"id":eid,"version":event["version"]})
+  self.assertEqual(self.m.event_rows(owner["id"])[0]["status"],"pending")

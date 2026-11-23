@@ -220,6 +220,28 @@ class MapService:
             if data.get("version")!=r["version"]:fail("version_conflict",409)
             if r["status"]not in("draft","rejected"):fail("invalid_status",409)
             db.execute("UPDATE map_events SET status='pending',note='',version=version+1 WHERE id=?",(eid,));self.audit(db,u["id"],eid,"event_submitted")
+    def hide_event(self, user, data):
+        event_id = txt(data, "id", 1, 32)
+        with self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            event = db.execute(
+                "SELECT version,published_data FROM map_events WHERE id=? AND owner=?",
+                (event_id, user["id"]),
+            ).fetchone()
+            if not event:
+                fail("not_found", 404)
+            if data.get("version") != event["version"]:
+                fail("version_conflict", 409)
+            if event["published_data"] is None:
+                fail("invalid_status", 409)
+            db.execute(
+                """UPDATE map_events SET published_data=NULL,published_poster='',
+                   published_organization_id=NULL,status='draft',note='',version=version+1
+                   WHERE id=?""",
+                (event_id,),
+            )
+            self.audit(db, user["id"], event_id, "event:hidden_by_owner")
+
     def get(self,path,token):
         if path=="/api/map/events":return {"events":self.event_rows(public=True)}
         if path=="/api/map/session":
@@ -238,6 +260,7 @@ class MapService:
         if path=="/api/map/profile":self.save_profile(u,data)
         elif path=="/api/map/events/save":self.save_event(u,data)
         elif path=="/api/map/events/submit":self.submit(u,data)
+        elif path=="/api/map/events/hide":self.hide_event(u,data)
         elif path=="/api/map/admin/review":self.review(u,data);return self.admin_state(u),None
         else:fail("not_found",404)
         return self.state(u),None
